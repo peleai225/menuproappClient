@@ -1,4 +1,50 @@
-const CACHE_NAME = 'menupro-v1'
+importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js")
+importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js")
+
+firebase.initializeApp({
+  apiKey:            "AIzaSyA3O6fkzC51wVle8J4jhNbY15VhJDRqk60",
+  authDomain:        "menuproapp-eeb2e.firebaseapp.com",
+  projectId:         "menuproapp-eeb2e",
+  storageBucket:     "menuproapp-eeb2e.firebasestorage.app",
+  messagingSenderId: "445689267258",
+  appId:             "1:445689267258:web:f0ce04556245536fcd2103",
+})
+
+const messaging = firebase.messaging()
+
+messaging.onBackgroundMessage((payload) => {
+  const title = payload.notification?.title ?? "MenuPro"
+  const body  = payload.notification?.body  ?? ""
+  const data  = payload.data ?? {}
+
+  self.registration.showNotification(title, {
+    body,
+    icon:  "/icon-192.png",
+    badge: "/icon-dark-32x32.png",
+    tag:   data.type ?? "menupro-push",
+    data,
+    vibrate: [200, 100, 200],
+    actions: data.type === "order_status"
+      ? [{ action: "track", title: "Suivre ma commande" }]
+      : [],
+  })
+})
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close()
+  const data = event.notification.data ?? {}
+  const url  = data.order_id ? `/orders/${data.order_id}` : "/"
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const existing = list.find((c) => c.url.includes(url) || c.url.endsWith("/"))
+      if (existing) return existing.focus()
+      return clients.openWindow(url)
+    })
+  )
+})
+
+const CACHE_NAME = 'menupro-v2'
 
 const PRECACHE_URLS = ['/', '/icon-192.png', '/icon-512.png']
 

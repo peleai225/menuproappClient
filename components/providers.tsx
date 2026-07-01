@@ -3,6 +3,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Toaster } from 'sonner'
+import { useFcm } from '@/hooks/use-fcm'
+
+function FcmInit() {
+  useFcm()
+  return null
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -20,6 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={client}>
+      <FcmInit />
       {children}
       <Toaster
         position="top-center"

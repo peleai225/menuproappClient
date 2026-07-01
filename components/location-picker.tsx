@@ -6,67 +6,53 @@ import { MapPin, Navigation, Search, X, Loader2 } from 'lucide-react'
 import { useGeo } from '@/hooks/use-geo'
 import { useReverseGeocode } from '@/hooks/use-reverse-geocode'
 import { useAddressSearch, type AddressResult } from '@/hooks/use-address-search'
+import { usePlatformConfig } from '@/hooks/use-platform-config'
 
-// Leaflet components — client-only
-const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false })
-const TileLayer    = dynamic(() => import('react-leaflet').then((m) => m.TileLayer),    { ssr: false })
-const Marker       = dynamic(() => import('react-leaflet').then((m) => m.Marker),       { ssr: false })
+// Mapbox map — client only
+const MapboxMap = dynamic(() => import('@/components/mapbox-map'), { ssr: false })
 
-// MapClickHandler must be a separate client component that uses useMapEvents
-// We wrap it in a dynamic component to avoid SSR issues with react-leaflet hooks
-const MapClickHandler = dynamic(
-  () =>
-    import('react-leaflet').then((m) => {
-      function ClickHandler({ onMove }: { onMove: (lat: number, lng: number) => void }) {
-        m.useMapEvents({
-          click(e: any) {
-            onMove(e.latlng.lat, e.latlng.lng)
-          },
-        })
-        return null
-      }
-      return ClickHandler
-    }),
-  { ssr: false }
-)
+// Leaflet fallback — client only
+const LeafletMap = dynamic(() => import('@/components/leaflet-map'), { ssr: false })
+
+export interface LocationValue {
+  lat: number
+  lng: number
+  address: string
+  city: string
+}
 
 interface LocationPickerProps {
-  value?: { lat: number; lng: number; address: string }
-  onChange: (location: { lat: number; lng: number; address: string; city: string }) => void
+  value?: LocationValue
+  onChange: (location: LocationValue) => void
   placeholder?: string
 }
 
 export function LocationPicker({ value, onChange, placeholder = 'Où livrer ?' }: LocationPickerProps) {
   const { coords: position } = useGeo()
+  const { config } = usePlatformConfig()
   const { search, results, loading: searching, clear } = useAddressSearch()
-  const [query, setQuery] = useState('')
+
+  const [query, setQuery] = useState(value?.address ?? '')
   const [showResults, setShowResults] = useState(false)
+  const [showMap, setShowMap] = useState(false)
   const [mapPos, setMapPos] = useState<{ lat: number; lng: number } | null>(
     value ? { lat: value.lat, lng: value.lng } : null
   )
-  const [showMap, setShowMap] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
 
-  // Géocodage inversé quand le marqueur bouge sur la carte
+  const hasMapbox = !!config.mapbox.token
+
   const { address: geoAddress, loading: geoLoading } = useReverseGeocode(
     mapPos?.lat ?? null,
     mapPos?.lng ?? null
   )
 
-  // Quand l'adresse est résolue, notifier le parent
   useEffect(() => {
     if (geoAddress && mapPos) {
-      onChange({
-        lat: mapPos.lat,
-        lng: mapPos.lng,
-        address: geoAddress.address,
-        city: geoAddress.city,
-      })
+      onChange({ lat: mapPos.lat, lng: mapPos.lng, address: geoAddress.address, city: geoAddress.city })
       setQuery(geoAddress.address)
     }
   }, [geoAddress])
 
-  // Utiliser la position GPS automatiquement si pas de valeur
   useEffect(() => {
     if (!value && position && !mapPos) {
       setMapPos({ lat: position.lat, lng: position.lng })
@@ -80,7 +66,8 @@ export function LocationPicker({ value, onChange, placeholder = 'Où livrer ?' }
   }
 
   function selectResult(result: AddressResult) {
-    setMapPos({ lat: result.lat, lng: result.lng })
+    const pos = { lat: result.lat, lng: result.lng }
+    setMapPos(pos)
     setQuery(result.address || result.display_name)
     setShowResults(false)
     clear()
@@ -103,7 +90,6 @@ export function LocationPicker({ value, onChange, placeholder = 'Où livrer ?' }
         <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2.5">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
-            ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => handleSearchInput(e.target.value)}
@@ -166,24 +152,23 @@ export function LocationPicker({ value, onChange, placeholder = 'Où livrer ?' }
       {showMap && (
         <div className="relative overflow-hidden rounded-2xl border border-border">
           <div className="h-56 w-full">
-            <MapContainer
-              center={[center.lat, center.lng]}
-              zoom={15}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='© OpenStreetMap'
+            {hasMapbox ? (
+              <MapboxMap
+                token={config.mapbox.token}
+                style={`mapbox://styles/mapbox/${config.mapbox.style}`}
+                center={center}
+                marker={mapPos}
+                onMove={(lat, lng) => setMapPos({ lat, lng })}
               />
-              <MapClickHandler onMove={(lat, lng) => setMapPos({ lat, lng })} />
-              {mapPos && (
-                <Marker position={[mapPos.lat, mapPos.lng]} />
-              )}
-            </MapContainer>
+            ) : (
+              <LeafletMap
+                center={center}
+                marker={mapPos}
+                onMove={(lat, lng) => setMapPos({ lat, lng })}
+              />
+            )}
           </div>
 
-          {/* Indicateur de chargement géocodage */}
           {geoLoading && (
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-background/90 px-3 py-1.5 text-xs shadow">
               <Loader2 className="size-3 animate-spin" />
@@ -191,7 +176,6 @@ export function LocationPicker({ value, onChange, placeholder = 'Où livrer ?' }
             </div>
           )}
 
-          {/* Adresse détectée */}
           {geoAddress && !geoLoading && (
             <div className="absolute bottom-2 left-2 right-2 rounded-xl bg-background/95 px-3 py-2 text-xs shadow">
               <p className="font-medium text-foreground">{geoAddress.address}</p>

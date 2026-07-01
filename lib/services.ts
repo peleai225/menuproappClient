@@ -111,6 +111,10 @@ export async function logout(): Promise<void> {
   }
 }
 
+export async function updateFcmToken(fcm_token: string): Promise<void> {
+  await api.patch('/client/auth/fcm-token', { fcm_token })
+}
+
 export async function updateProfile(payload: {
   name?: string
   email?: string
