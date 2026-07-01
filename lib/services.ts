@@ -155,7 +155,7 @@ export interface CreateOrderPayload {
   delivery_address: string
   delivery_city: string
   delivery_instructions?: string
-  payment_method: 'wave'
+  payment_method: 'wave' | 'cash'
 }
 
 export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResponse> {

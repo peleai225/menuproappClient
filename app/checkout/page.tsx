@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { MapPin, Store } from 'lucide-react'
+import { Banknote, MapPin, Store, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCart } from '@/store/cart'
 import { useAuth } from '@/store/auth'
@@ -12,11 +12,12 @@ import { createOrder, getAddresses, getDeliveryEstimate, initiatePayment } from 
 import { apiErrorMessage } from '@/lib/api'
 import { formatPrice } from '@/lib/format'
 import { PageHeader } from '@/components/page-header'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { LocationPicker } from '@/components/location-picker'
 import type { Address } from '@/lib/types'
+
+type PaymentMethod = 'wave' | 'cash'
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -35,6 +36,7 @@ export default function CheckoutPage() {
   const [manualLng, setManualLng] = useState<number | null>(null)
   const [instructions, setInstructions] = useState('')
   const [promoCode, setPromoCode] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wave')
   const [loading, setLoading] = useState(false)
 
   const { data: addresses } = useQuery({
@@ -63,7 +65,7 @@ export default function CheckoutPage() {
     return null
   }
 
-  async function handlePay() {
+  async function handleSubmit() {
     setLoading(true)
     try {
       const deliveryLat = selectedAddress ? Number(selectedAddress.latitude) : (manualLat ?? coords.lat)
@@ -85,11 +87,19 @@ export default function CheckoutPage() {
         delivery_address: deliveryAddress,
         delivery_city: deliveryCity,
         delivery_instructions: instructions || undefined,
-        payment_method: 'wave',
+        payment_method: paymentMethod,
       })
 
-      const { payment_url } = await initiatePayment(orderResponse.order.id)
       clear()
+
+      if (paymentMethod === 'cash') {
+        toast.success('Commande passée ! Préparez le montant exact à la livraison.')
+        router.replace('/orders')
+        return
+      }
+
+      // Paiement en ligne Wave
+      const { payment_url } = await initiatePayment(orderResponse.order.id)
       window.location.href = payment_url.startsWith('http')
         ? payment_url
         : `${process.env.NEXT_PUBLIC_API_URL || 'https://menupro.ci'}${payment_url}`
@@ -176,6 +186,52 @@ export default function CheckoutPage() {
         )}
       </div>
 
+      {/* Méthode de paiement */}
+      <div className="mx-4 mt-4 rounded-2xl bg-card p-4 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Mode de paiement</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setPaymentMethod('wave')}
+            className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
+              paymentMethod === 'wave'
+                ? 'border-primary bg-primary/5'
+                : 'border-border'
+            }`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+              <Wallet className="size-5 text-blue-600" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Wave</p>
+              <p className="text-xs text-muted-foreground">Paiement mobile</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setPaymentMethod('cash')}
+            className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
+              paymentMethod === 'cash'
+                ? 'border-emerald-500 bg-emerald-50'
+                : 'border-border'
+            }`}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
+              <Banknote className="size-5 text-emerald-600" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Espèces</p>
+              <p className="text-xs text-muted-foreground">À la livraison</p>
+            </div>
+          </button>
+        </div>
+
+        {paymentMethod === 'cash' && (
+          <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+            💵 Préparez <span className="font-bold">{formatPrice(total)}</span> en espèces. Le livreur encaissera à la livraison.
+          </p>
+        )}
+      </div>
+
       {/* Promo code */}
       <div className="mx-4 mt-4 rounded-2xl bg-card p-4 shadow-sm">
         <div className="flex gap-2">
@@ -188,9 +244,7 @@ export default function CheckoutPage() {
           <button
             type="button"
             onClick={() => {
-              if (promoCode.trim()) {
-                toast.info('Code promo non reconnu')
-              }
+              if (promoCode.trim()) toast.info('Code promo non reconnu')
             }}
             className="shrink-0 rounded-xl bg-secondary px-4 text-sm font-semibold text-secondary-foreground"
           >
@@ -217,17 +271,29 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Pay button */}
+      {/* CTA */}
       <div className="fixed bottom-16 left-1/2 z-40 w-[calc(100%-2rem)] max-w-[448px] -translate-x-1/2">
         <button
-          onClick={handlePay}
+          onClick={handleSubmit}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 disabled:opacity-60 active:scale-[0.99]"
+          className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold text-white shadow-lg disabled:opacity-60 active:scale-[0.99] ${
+            paymentMethod === 'cash'
+              ? 'bg-emerald-500 shadow-emerald-500/30'
+              : 'bg-primary shadow-primary/30'
+          }`}
         >
           {loading ? (
             <Spinner className="size-5" />
+          ) : paymentMethod === 'cash' ? (
+            <>
+              <Banknote className="size-5" />
+              Commander · Payer à la livraison
+            </>
           ) : (
-            <>Payer avec Wave · {formatPrice(total)}</>
+            <>
+              <Wallet className="size-5" />
+              Payer avec Wave · {formatPrice(total)}
+            </>
           )}
         </button>
       </div>
