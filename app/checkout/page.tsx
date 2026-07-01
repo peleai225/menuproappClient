@@ -168,7 +168,7 @@ export default function CheckoutPage() {
         {!selectedAddress && (
           <div className="mt-3 space-y-3">
             <LocationPicker
-              value={manualAddress ? { lat: manualLat ?? coords.lat, lng: manualLng ?? coords.lng, address: manualAddress } : undefined}
+              value={manualAddress ? { lat: manualLat ?? coords.lat, lng: manualLng ?? coords.lng, address: manualAddress, city: manualCity } : undefined}
               onChange={({ lat, lng, address, city }) => {
                 setManualLat(lat)
                 setManualLng(lng)
