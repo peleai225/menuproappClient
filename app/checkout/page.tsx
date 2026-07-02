@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Banknote, MapPin, Store, Wallet } from 'lucide-react'
+import { Banknote, Loader2, MapPin, Store, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCart } from '@/store/cart'
 import { useAuth } from '@/store/auth'
@@ -45,9 +45,13 @@ export default function CheckoutPage() {
     enabled: !!token,
   })
 
-  const { data: estimate } = useQuery({
-    queryKey: ['estimate', restaurantId, coords.lat, coords.lng],
-    queryFn: () => getDeliveryEstimate(restaurantId!, coords.lat, coords.lng),
+  // Priorité : adresse sauvegardée > adresse manuelle saisie > GPS passif
+  const estimateLat = selectedAddress ? Number(selectedAddress.latitude) : (manualLat ?? coords.lat)
+  const estimateLng = selectedAddress ? Number(selectedAddress.longitude) : (manualLng ?? coords.lng)
+
+  const { data: estimate, isFetching: estimateLoading } = useQuery({
+    queryKey: ['estimate', restaurantId, estimateLat, estimateLng],
+    queryFn: () => getDeliveryEstimate(restaurantId!, estimateLat, estimateLng),
     enabled: !!restaurantId,
     retry: false,
   })
@@ -68,8 +72,8 @@ export default function CheckoutPage() {
   async function handleSubmit() {
     setLoading(true)
     try {
-      const deliveryLat = selectedAddress ? Number(selectedAddress.latitude) : (manualLat ?? coords.lat)
-      const deliveryLng = selectedAddress ? Number(selectedAddress.longitude) : (manualLng ?? coords.lng)
+      const deliveryLat = estimateLat
+      const deliveryLng = estimateLng
       const deliveryAddress = selectedAddress ? selectedAddress.address : manualAddress
       const deliveryCity = selectedAddress ? selectedAddress.city : manualCity
 
@@ -177,13 +181,15 @@ export default function CheckoutPage() {
               }}
               placeholder="Où livrer ?"
             />
-            <Input
-              placeholder="Instructions pour le livreur (optionnel)"
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-            />
           </div>
         )}
+
+        <Input
+          className="mt-3"
+          placeholder="Instructions pour le livreur (optionnel)"
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+        />
       </div>
 
       {/* Méthode de paiement */}
@@ -244,7 +250,7 @@ export default function CheckoutPage() {
           <button
             type="button"
             onClick={() => {
-              if (promoCode.trim()) toast.info('Code promo non reconnu')
+              if (promoCode.trim()) toast.info('Codes promo bientôt disponibles')
             }}
             className="shrink-0 rounded-xl bg-secondary px-4 text-sm font-semibold text-secondary-foreground"
           >
@@ -261,7 +267,11 @@ export default function CheckoutPage() {
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Livraison</span>
-          <span className="font-semibold">{formatPrice(deliveryFee)}</span>
+          {estimateLoading ? (
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          ) : (
+            <span className="font-semibold">{formatPrice(deliveryFee)}</span>
+          )}
         </div>
         <div className="border-t border-border pt-2">
           <div className="flex justify-between">

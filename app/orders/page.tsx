@@ -28,6 +28,14 @@ export default function OrdersPage() {
     queryFn: getOrderHistory,
     enabled: !!token,
     staleTime: 0,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return false
+      const hasActive = data.some((o) =>
+        ['confirmed', 'preparing', 'ready', 'delivering'].includes(o.status),
+      )
+      return hasActive ? 15_000 : false
+    },
   })
 
   if (!token) return null
@@ -65,7 +73,7 @@ export default function OrdersPage() {
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-foreground">{formatPrice(order.total)}</span>
-                {(order.status === 'delivering' || order.status === 'preparing' || order.status === 'confirmed') && (
+                {['confirmed', 'preparing', 'ready', 'delivering'].includes(order.status) && (
                   <Link
                     href={`/orders/track/${order.tracking_token}`}
                     className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground"

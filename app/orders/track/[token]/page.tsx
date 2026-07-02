@@ -10,7 +10,7 @@ import { formatMinutes } from '@/lib/format'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ShareTracking } from '@/components/share-tracking'
 import { cn } from '@/lib/utils'
-import type { Driver, TrackingResponse } from '@/lib/types'
+import type { Driver } from '@/lib/types'
 
 const TrackingMap = dynamic(() => import('@/components/tracking-map'), { ssr: false })
 
@@ -22,6 +22,16 @@ const STEPS = [
   { key: 'picked_up_at', label: 'Récupéré' },
   { key: 'completed_at', label: 'Livré' },
 ] as const
+
+// Minimum step index considered "done" for a given order status
+const STATUS_MIN_STEP: Record<string, number> = {
+  pending_payment: 0,
+  confirmed: 1,
+  preparing: 2,
+  ready: 2,
+  delivering: 4,
+  completed: 5,
+}
 
 export default function TrackingPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -77,12 +87,15 @@ export default function TrackingPage({ params }: { params: Promise<{ token: stri
 
   const driver = realtimeDriver ?? data.delivery.driver
   const estimatedMinutes = realtimeMinutes ?? data.estimated_minutes
+  const currentStatus = realtimeStatus ?? data.order_status
   const deliveryLat = data.delivery_lat ?? 5.3542
   const deliveryLng = data.delivery_lng ?? -3.9827
 
   const initialDriverPos = driver
     ? { lat: driver.latitude, lng: driver.longitude }
     : null
+
+  const minDoneIndex = STATUS_MIN_STEP[currentStatus] ?? 0
 
   return (
     <div className="min-h-dvh">
@@ -133,10 +146,11 @@ export default function TrackingPage({ params }: { params: Promise<{ token: stri
         {/* Timeline */}
         <div className="space-y-0">
           {STEPS.map((step, i) => {
-            const done = !!(data.timeline as Record<string, string | null>)[step.key]
+            const fromTimeline = !!(data.timeline as Record<string, string | null>)[step.key]
+            const done = fromTimeline || i <= minDoneIndex
             const isCurrent =
               !done &&
-              (i === 0 || !!(data.timeline as Record<string, string | null>)[STEPS[i - 1].key])
+              (i === 0 || i === minDoneIndex + 1 || !!(data.timeline as Record<string, string | null>)[STEPS[i - 1].key])
             return (
               <div key={step.key} className="flex gap-3">
                 <div className="flex flex-col items-center">
