@@ -66,7 +66,8 @@ export async function getDeliveryEstimate(
     return data.data ?? data
   } catch (error: any) {
     if (error.response?.status === 422) {
-      return error.response.data
+      const d = error.response.data
+      return d.data ?? d
     }
     return null
   }
