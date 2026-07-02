@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Banknote, Loader2, MapPin, Store, Wallet } from 'lucide-react'
+import { AlertTriangle, Banknote, Loader2, MapPin, Store, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCart } from '@/store/cart'
 import { useAuth } from '@/store/auth'
@@ -58,6 +58,7 @@ export default function CheckoutPage() {
 
   const deliveryFee = estimate?.delivery_fee ?? 0
   const total = subtotal + deliveryFee
+  const notDeliverable = estimate !== undefined && estimate !== null && !estimate.deliverable
 
   if (!token) {
     router.replace('/login?redirect=/checkout')
@@ -190,6 +191,13 @@ export default function CheckoutPage() {
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
         />
+
+        {notDeliverable && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>Ce restaurant ne livre pas à cette adresse. Veuillez choisir une autre adresse.</span>
+          </div>
+        )}
       </div>
 
       {/* Méthode de paiement */}
@@ -285,7 +293,7 @@ export default function CheckoutPage() {
       <div className="fixed bottom-16 left-1/2 z-40 w-[calc(100%-2rem)] max-w-[448px] -translate-x-1/2">
         <button
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || notDeliverable}
           className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold text-white shadow-lg disabled:opacity-60 active:scale-[0.99] ${
             paymentMethod === 'cash'
               ? 'bg-emerald-500 shadow-emerald-500/30'
