@@ -10,10 +10,11 @@ import { getAddresses, createAddress, deleteAddress } from '@/lib/services'
 import { apiErrorMessage } from '@/lib/api'
 import { PageHeader } from '@/components/page-header'
 import { EmptyState } from '@/components/empty-state'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LocationPicker, type LocationValue } from '@/components/location-picker'
 import type { Address } from '@/lib/types'
 
 export default function AddressesPage() {
@@ -22,8 +23,7 @@ export default function AddressesPage() {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [label, setLabel] = useState('Maison')
-  const [address, setAddress] = useState('')
-  const [city, setCity] = useState('Abidjan')
+  const [location, setLocation] = useState<LocationValue | null>(null)
   const [instructions, setInstructions] = useState('')
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function AddressesPage() {
       queryClient.invalidateQueries({ queryKey: ['addresses'] })
       toast.success('Adresse ajoutée')
       setShowForm(false)
-      setAddress('')
+      setLocation(null)
       setInstructions('')
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -58,18 +58,18 @@ export default function AddressesPage() {
   })
 
   function handleAdd() {
-    if (!address.trim()) {
+    if (!location) {
       toast.error('Veuillez saisir une adresse')
       return
     }
     createMutation.mutate({
       label,
-      address,
-      city,
+      address: location.address,
+      city: location.city,
       instructions: instructions || undefined,
       is_default: !addresses || addresses.length === 0,
-      latitude: 5.3542,
-      longitude: -3.9827,
+      latitude: location.lat,
+      longitude: location.lng,
     })
   }
 
@@ -129,16 +129,23 @@ export default function AddressesPage() {
                 </button>
               ))}
             </div>
-            <Input placeholder="Adresse" value={address} onChange={(e) => setAddress(e.target.value)} />
-            <Input placeholder="Ville" value={city} onChange={(e) => setCity(e.target.value)} />
-            <Input placeholder="Instructions (optionnel)" value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+            <LocationPicker
+              value={location ?? undefined}
+              onChange={setLocation}
+              placeholder="Rechercher ou localiser sur la carte"
+            />
+            <Input
+              placeholder="Instructions pour le livreur (optionnel)"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+            />
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setShowForm(false)}>
                 Annuler
               </Button>
               <button
                 onClick={handleAdd}
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || !location}
                 className="flex h-9 flex-1 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
                 {createMutation.isPending ? <Spinner className="size-4" /> : 'Ajouter'}
